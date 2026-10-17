@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { featureConfig } from './features-config.mjs';
 
 export function identifier(value, label = 'ID') {
   // SDK IDs are int64 strings. Accepting a JS number would lose precision.
@@ -52,6 +53,7 @@ export function validateConfig(raw, root) {
       timeoutMs: integer(raw.dsh?.timeoutMs, 180000, 1000, 600000, 'dsh.timeoutMs'),
     },
     role,
+    features: featureConfig(raw.features, root),
     maxMessageChars: integer(raw.maxMessageChars, 500, 50, 1000, 'maxMessageChars'),
     maxRepliesPerMinute: integer(raw.maxRepliesPerMinute, 6, 1, 30, 'maxRepliesPerMinute'),
     maxQueuePerGroup: integer(raw.maxQueuePerGroup, 8, 1, 30, 'maxQueuePerGroup'),

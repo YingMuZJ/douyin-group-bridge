@@ -1,6 +1,6 @@
 {
   "name": "douyin-group-bridge",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "license": "MIT",
   "description": "Douyin group chats to DeepSeek Harness, adapted from Derpyu520/qq-bridge with a native Douyin IM transport.",

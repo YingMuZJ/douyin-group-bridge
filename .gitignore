@@ -6,6 +6,9 @@ node_modules/
 state/
 config.json
 config.douyin.json
+.env
+.env.*
+!.env.example
 /start-dsh-local.bat
 *.zip
 *.log

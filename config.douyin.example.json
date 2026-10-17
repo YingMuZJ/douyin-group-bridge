@@ -15,6 +15,29 @@
     "timeoutMs": 180000
   },
   "role": "你是抖音群里的 AI 助手。用简短、自然的中文回答，明确说明自己的 AI 身份。",
+  "features": {
+    "poke": { "enabled": true },
+    "stickers": { "enabled": true },
+    "voice": { "enabled": true, "tts": "windows" },
+    "vision": {
+      "enabled": false,
+      "baseUrl": "https://api.deepseek.com",
+      "model": "deepseek-flash",
+      "apiKeySource": "env",
+      "apiKeyEnv": "DOUYIN_VISION_API_KEY"
+    },
+    "slang": { "enabled": true, "minMessages": 12, "intervalMs": 300000, "confirmations": 2 },
+    "social": {
+      "enabled": false,
+      "idleMs": 900000,
+      "cooldownMs": 1800000,
+      "minMessages": 6,
+      "maxPerDay": 3,
+      "maxContextAgeMs": 7200000,
+      "quietHours": [23, 8],
+      "timezone": "Asia/Shanghai"
+    }
+  },
   "maxMessageChars": 500,
   "maxRepliesPerMinute": 6,
   "maxQueuePerGroup": 8,

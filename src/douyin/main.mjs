@@ -13,6 +13,8 @@ import { DshAgent } from './dsh-agent.mjs';
 import { protectStateDir } from './permissions.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+// Keys stay in an ignored local file/environment, never in group config/prompts.
+if(fs.existsSync(path.join(root,'.env.local')))process.loadEnvFile(path.join(root,'.env.local'));
 const command = process.argv[2] ?? 'start';
 const configFile = path.join(root, 'config.douyin.json');
 const log = (text) => console.log(`[抖音群聊桥接] ${text}`);
@@ -127,7 +129,7 @@ async function main() {
       }
     }
     if (command !== 'start') return;
-    log('群聊桥接已启动。只处理白名单群的文字消息，按 Ctrl+C 退出。');
+    log('群聊桥接已启动。白名单群的文字、媒体和互动路由已就绪；主动聊天按配置/群开关控制，按 Ctrl+C 退出。');
     await new Promise((resolve) => {
       const tick = setInterval(() => { if (stopping) { clearInterval(tick); resolve(); } }, 200);
     });

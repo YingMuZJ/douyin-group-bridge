@@ -31,7 +31,7 @@ export class DshAgent {
     this.ready = false;
     this.policy = createHash('sha256').update(JSON.stringify({
       base: config.dsh.baseUrl, preset: config.dsh.preset, provider: config.dsh.provider,
-      model: config.dsh.model, reasoningEffort: config.dsh.reasoningEffort, guardVersion: 1,
+      model: config.dsh.model, reasoningEffort: config.dsh.reasoningEffort, guardVersion: 2,
     })).digest('hex');
   }
   async start() {

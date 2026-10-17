@@ -10,6 +10,10 @@
 - `src/douyin/dsh-agent.mjs`：复用上游客户端，建立独立持久会话，消费事件、恢复快照，停止/退役异常回合。
 - `src/douyin/store.mjs`：原子状态写入、跨重启去重与单实例锁。
 - `src/douyin/config.mjs`：字符串 ID 与配置边界校验。
+- `src/douyin/features-config.mjs`：扩展功能开关及主动发言限制。
+- `src/douyin/media.mjs`：受限图片下载/解密、视觉接口、语音库和 Windows TTS。
+- `src/douyin/tools.mjs`：严格 JSON 动作解析及当前群媒体动作准备。
+- `src/douyin/social.mjs`：按群黑话学习、媒体关联和主动发言调度。
 - `plugins/douyin-agent-presets/`：DSH 专用聊天预设和执行守卫。
 - `scripts/setup-douyin-dsh.mjs`：幂等注册 bundle，保留并备份现有 DSH profile。
 - `tests/douyin/`：路由/权限、SDK 契约、状态/去重、真实 HTTP/WebSocket 模拟 DSH、安装测试。
@@ -26,7 +30,7 @@ Windows 实机安装发现上游 ACL 脚本会先移除继承权限，再按账�
 
 新增自动测试全程离线于真实抖音和真实 DSH，只使用本机临时服务。它们验证 SDK 事件的实际字段、原 DSH 客户端发送的 RPC 格式和 Cookie WebSocket 请求头、两轮回复、白名单、管理员权限、群间隔离、发送不确定性去重、重连快照恢复、超时退役和预设安装。
 
-模拟 DSH 不是完整 DSH 运行时。专用 preset 的结构与执行守卫做了自动检查，并补充本机真实 DSH 的装载、会话生命周期和模型调用验收。新增核心默认不开放任何模型工具，因此也未移植旧 QQ MCP 的自主收发和仿真状态机。
+模拟 DSH 不是完整 DSH 运行时。专用 preset 的结构与执行守卫做了自动检查，并补充本机真实 DSH 的装载、会话生命周期和模型调用验收。媒体互动通过桥接限定 JSON 动作实现，主动聊天使用独立按群调度，不移植允许任意收发的旧 QQ MCP。复用上游黑话词条规范化和上下文构造，另加来源消息证据校验与按群持久化。扩展配置与验收边界见 [DOUYIN_FEATURES.md](DOUYIN_FEATURES.md)。
 
 本机已完成真实抖音扫码登录、群列表、群成员 UID 查询，以及 DSH profile 装载、专用会话创建与归档、DeepSeek API Key 配置和真实模型调用。群内使用 `/ai` 前缀触发已通过，运行日志和用户实际接收确认一致。协议 @、图片/语音和其他机器环境未做本次实测，不应扩展宣称为已验证。
 
