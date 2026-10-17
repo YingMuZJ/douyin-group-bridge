@@ -1,0 +1,7 @@
+{
+  "name": "douyin-agent-presets",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "dsh": { "bundle": { "patch": "./preset.patch.yml" } }
+}

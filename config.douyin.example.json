@@ -1,0 +1,24 @@
+{
+  "douyin": {
+    "groups": [],
+    "owners": [],
+    "trigger": "mention",
+    "prefix": "/ai",
+    "sessionScope": "group"
+  },
+  "dsh": {
+    "baseUrl": "http://127.0.0.1:3080",
+    "authToken": "",
+    "provider": "",
+    "model": "",
+    "reasoningEffort": "high",
+    "timeoutMs": 180000
+  },
+  "role": "你是抖音群里的 AI 助手。用简短、自然的中文回答，明确说明自己的 AI 身份。",
+  "maxMessageChars": 500,
+  "maxRepliesPerMinute": 6,
+  "maxQueuePerGroup": 8,
+  "maxActiveGroups": 8,
+  "contextWindow": 12,
+  "maxMessageAgeSeconds": 300
+}
