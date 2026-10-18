@@ -18,7 +18,7 @@
   "features": {
     "poke": { "enabled": true },
     "stickers": { "enabled": true },
-    "voice": { "enabled": true, "tts": "windows" },
+    "voice": { "enabled": false, "tts": "windows" },
     "vision": {
       "enabled": false,
       "baseUrl": "https://api.deepseek.com",

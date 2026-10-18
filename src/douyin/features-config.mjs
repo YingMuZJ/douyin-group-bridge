@@ -71,7 +71,7 @@ export function featureConfig(raw = {}, root) {
       enabled: flag(raw.stickers?.enabled, true, 'stickers.enabled'),
     },
     voice: {
-      enabled: flag(a.enabled, true, 'voice.enabled'),
+      enabled: flag(a.enabled, false, 'voice.enabled'),
       tts: engine,
       libraryDir: path.join(root, 'audio', 'douyin'),
       maxBytes: 8 * 1024 * 1024,

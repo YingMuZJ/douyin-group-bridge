@@ -5,8 +5,23 @@ import { FeatureTools, parseReply } from './tools.mjs';
 
 const COMMAND =
   /^\/(help|status|reset|silent|active|role|poke|voice|sticker|image|slang|social)(?:\s+([\s\S]*))?$/;
-const HELP =
-  '我是群聊 AI 助手。@我或 /ai 问题。互动：/ai /poke、/ai /voice 文本、/ai /voice list、/ai /voice play ID、/ai /sticker list、/ai /sticker ID；发图后 /ai /image 问题。管理员：/status、/reset、/silent、/active、/role；/slang list|on|off|approve 词|reject 词|clear，/social on|off|status。';
+function helpText(config) {
+  const f = config.features;
+  return [
+    '我是群聊 AI 助手。@我或发送 /ai 问题即可对话。',
+    f.poke.enabled ? '表态：/ai /poke' : '',
+    f.stickers.enabled ? '表情包：/ai /sticker list，/ai /sticker ID' : '',
+    f.vision.enabled ? '看图：先发图，再发 /ai /image 问题' : '',
+    f.voice.enabled
+      ? '语音附件：/ai /voice 文本，/ai /voice list，/ai /voice play ID，/ai /voice status'
+      : '',
+    '管理员：/status、/reset、/silent、/active、/role',
+    '黑话：/slang list；管理员可用 on、off、approve 词、reject 词、clear',
+    '主动聊天：管理员 /social on、/social off、/social status',
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
 
 export class GroupBridge {
   constructor({
@@ -25,6 +40,7 @@ export class GroupBridge {
     this.roomBarriers = new Map();
     this.startedAt = now();
     this.closed = false;
+    this.help = helpText(config);
     this.abort = new AbortController();
     this.tools = tools ?? new FeatureTools({ config });
     this.memory =
@@ -150,7 +166,43 @@ export class GroupBridge {
       return false;
     }
     if (send && this.canSend(message) && valid() && this.takeSlot(message)) {
-      const receipt = await send();
+      const room = `${message.accountId}:${message.groupId}`;
+      let receipt;
+      try {
+        receipt = await send();
+      } catch (error) {
+        if (error.code !== 'DOUYIN_REVIEW' && error.checkCode !== 10502)
+          throw error;
+        this.store.updateRoom(room, {
+          mediaDelivery: {
+            ...this.store.room(room).mediaDelivery,
+            [action.type]: {
+              state: 'review',
+              at: this.now(),
+              checkCode: 10502,
+            },
+          },
+        });
+        this.log(
+          `群互动 ${action.type} 进入平台审核，check=10502，本条不自动重发`,
+        );
+        // A definite review response can be explained once. Transport timeouts
+        // still propagate without retries or an extra message.
+        if (!message.proactive && valid() && this.canSend(message))
+          await this.send(
+            message,
+            action.type === 'voice'
+              ? '语音附件进入平台审核，暂未确认送达。本条不会自动重发；可用 /ai /voice status 查看状态。'
+              : '媒体消息进入平台审核，暂未确认送达，本条不会自动重发。',
+          );
+        return false;
+      }
+      this.store.updateRoom(room, {
+        mediaDelivery: {
+          ...this.store.room(room).mediaDelivery,
+          [action.type]: { state: 'accepted', at: this.now() },
+        },
+      });
       this.log(
         `平台已受理群互动 ${action.type}，群 ${message.groupId}${Number.isInteger(receipt?.statusCode) ? `，status=${receipt.statusCode}` : ''}`,
       );
@@ -181,7 +233,7 @@ export class GroupBridge {
     const owner = this.config.douyin.owners.includes(message.senderId);
     if (command) {
       const [, name, arg = ''] = command;
-      if (name === 'help') return this.send(message, HELP);
+      if (name === 'help') return this.send(message, this.help);
       if (name === 'slang')
         return this.send(message, this.memory.command(room, arg, owner));
       if (name === 'social')
@@ -246,7 +298,8 @@ export class GroupBridge {
       }
     }
     if (this.store.room(room).silent) return;
-    if (!text.trim() && !message.attachment) return this.send(message, HELP);
+    if (!text.trim() && !message.attachment)
+      return this.send(message, this.help);
     const contextKey = key;
     const history = this.context.get(contextKey) ?? [];
     const role = this.store.room(room).role ?? this.config.role;
@@ -408,6 +461,17 @@ export class GroupBridge {
     }
     if (name === 'voice') {
       if (!cfg.voice.enabled) return this.send(message, '语音功能已关闭。');
+      if (arg.trim() === 'status') {
+        const last = this.store.room(room).mediaDelivery?.voice;
+        return this.send(
+          message,
+          last
+            ? last.state === 'review'
+              ? '最近的语音附件处于平台审核状态，尚未确认接收端送达；不会自动重发。'
+              : '最近的语音消息已被平台受理，接收端播放仍以实际显示为准。'
+            : '没有本群语音发送状态记录。',
+        );
+      }
       if (arg.trim() === 'list') {
         const items = this.tools.voice.list();
         return this.send(

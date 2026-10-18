@@ -71,7 +71,11 @@ function fixture(t, features = {}, options = {}) {
   const config = validateConfig(
     {
       douyin: { groups: [group, '20002'], owners: [user] },
-      features: { slang: { enabled: false }, ...features },
+      features: {
+        voice: { enabled: true },
+        slang: { enabled: false },
+        ...features,
+      },
       ...options,
     },
     root,
@@ -163,6 +167,21 @@ test('新功能配置拒绝非布尔开关、非法时区、未配视觉模型�
       { features: { social: { timezone: 'not-a-timezone' } } },
       '.',
     ),
+  );
+});
+
+test('默认关闭语音，帮助菜单和模型动作不再提供语音入口', async (t) => {
+  assert.equal(validateConfig({}, '.').features.voice.enabled, false);
+  const f = fixture(t, { voice: { enabled: false } });
+  f.tools.voice.prepare = async () => assert.fail('关闭的语音不能合成');
+  await f.bridge.handle(f.msg({ text: '/ai /help' }));
+  assert.ok(!f.sends[0].includes('/voice'));
+  await f.bridge.handle(f.msg({ text: '/ai /voice 测试' }));
+  assert.equal(f.sends[1], '语音功能已关闭。');
+  const directive = await f.tools.directive(f.msg());
+  assert.ok(!directive.includes('{"type":"voice"'));
+  await assert.rejects(() =>
+    f.tools.prepare(f.msg(), { type: 'voice', text: '不应合成' }),
   );
 });
 
@@ -454,12 +473,17 @@ test('媒体发送超时不会重试，也不会接着发送正文或错误消�
 test('平台返回审核码10502时不当作送达，也不自动重发音频', async (t) => {
   const f = fixture(t);
   let sends = 0;
+  const notices = [];
   const groupContact = {
     groupId: group,
     name: '测试群',
     pickMember: () => undefined,
     ensureMember: () => ({ nickname: '用户' }),
-    sendMsg: async () => {
+    sendMsg: async (message) => {
+      if (typeof message === 'string') {
+        notices.push(message);
+        return { statusCode: 0 };
+      }
       sends++;
       return { statusCode: 0, checkCode: 10502 };
     },
@@ -485,12 +509,43 @@ test('平台返回审核码10502时不当作送达，也不自动重发音频', 
     account,
   );
   const m = normalizeGroupMessage(event, f.now());
-  await assert.rejects(
-    () => f.bridge.handle(m),
-    (e) => e.code === 'DOUYIN_REVIEW' && e.checkCode === 10502,
-  );
+  await f.bridge.handle(m);
   await f.bridge.handle(m);
   assert.equal(sends, 1);
+  assert.equal(notices.length, 1);
+  assert.match(notices[0], /平台审核/);
+  assert.equal(f.store.room(f.room).mediaDelivery.voice.state, 'review');
+  await f.bridge.handle(f.msg({ text: '/ai /poke' }));
+  await f.bridge.handle(f.msg({ text: '/ai /voice status' }));
+  assert.match(f.sends[0], /平台审核/);
+});
+
+test('正常投递回执8101不会被误判为审核失败', async () => {
+  const contact = {
+    groupId: group,
+    pickMember: () => undefined,
+    ensureMember: () => ({ nickname: '用户' }),
+    sendMsg: async () => ({ statusCode: 0, checkCode: 8101 }),
+  };
+  const event = GroupMessageEvent.fromInbound(
+    {
+      raw: {},
+      threadId: group,
+      conversationShortId: group,
+      conversationType: 2,
+      senderUid: user,
+      serverMessageId: '90003',
+      createTime: '1800000000',
+      messageType: 7,
+      rawContent: JSON.stringify({ aweType: 700, text: '你好' }),
+      text: '你好',
+    },
+    { uid: bot, bindGroup: () => contact },
+  );
+  const response = await normalizeGroupMessage(event, 1800000000000).send(
+    '回复',
+  );
+  assert.equal(response.checkCode, 8101);
 });
 
 test('模型选择沉默时不执行附带的表情动作', async (t) => {

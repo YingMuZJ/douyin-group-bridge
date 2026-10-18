@@ -7,7 +7,8 @@ function confirmed(response) {
   if (
     !response ||
     response.statusCode !== 0 ||
-    (Number.isFinite(response.checkCode) && response.checkCode !== 0)
+    (Number.isFinite(response.checkCode) &&
+      ![0, 8101].includes(response.checkCode))
   )
     throw Object.assign(new Error('抖音未确认发送成功'), {
       code: response?.checkCode === 10502 ? 'DOUYIN_REVIEW' : undefined,
