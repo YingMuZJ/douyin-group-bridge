@@ -1,0 +1,75 @@
+{
+  "douyin": {
+    "groups": [],
+    "owners": [],
+    "trigger": "social",
+    "prefix": "/ai",
+    "sessionScope": "group"
+  },
+  "dsh": {
+    "baseUrl": "http://127.0.0.1:3080",
+    "authToken": "",
+    "provider": "",
+    "model": "",
+    "reasoningEffort": "high",
+    "timeoutMs": 180000
+  },
+  "role": "",
+  "features": {
+    "poke": {
+      "enabled": true
+    },
+    "stickers": {
+      "enabled": true
+    },
+    "voice": {
+      "enabled": false,
+      "tts": "windows"
+    },
+    "vision": {
+      "enabled": false,
+      "baseUrl": "https://api.deepseek.com",
+      "model": "deepseek-flash",
+      "apiKeySource": "env",
+      "apiKeyEnv": "DOUYIN_VISION_API_KEY"
+    },
+    "slang": {
+      "enabled": true,
+      "minMessages": 12,
+      "intervalMs": 300000,
+      "confirmations": 2
+    },
+    "social": {
+      "enabled": true,
+      "idleMs": 120000,
+      "cooldownMs": 600000,
+      "minMessages": 2,
+      "maxPerDay": 8,
+      "maxContextAgeMs": 7200000,
+      "quietHours": [
+        23,
+        8
+      ],
+      "timezone": "Asia/Shanghai",
+      "aliases": [
+        "小木"
+      ],
+      "replyProbability": 0.65,
+      "batchWindowMs": 2000,
+      "replyCooldownMs": 12000,
+      "maxChecksPerHour": 24,
+      "followupWindowMs": 180000,
+      "followupMaxTurns": 6,
+      "activeDurationMs": 900000,
+      "replyMaxChars": 20,
+      "allowEmoji": false
+    }
+  },
+  "maxMessageChars": 500,
+  "maxRepliesPerMinute": 6,
+  "maxQueuePerGroup": 8,
+  "maxActiveGroups": 8,
+  "contextWindow": 12,
+  "maxMessageAgeSeconds": 300,
+  "roleFile": "小木.md"
+}

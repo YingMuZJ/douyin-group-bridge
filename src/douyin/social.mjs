@@ -49,10 +49,10 @@ export class SocialMemory {
   }
   observe(message) {
     const room = `${message.accountId}:${message.groupId}`;
-    if (!this.store.claim(`observe:${room}:${message.messageId}`)) return;
+    if (!this.store.claim(`observe:${room}:${message.messageId}`)) return false;
     let state = this.rooms.get(room);
     if (!state) {
-      if (this.rooms.size >= 100) return;
+      if (this.rooms.size >= 100) return false;
       this.rooms.set(
         room,
         (state = {
@@ -75,10 +75,11 @@ export class SocialMemory {
     }
     const text = message.text.trim();
     if (!text || text.startsWith('/') || !cleanFeatureText(text, this.config))
-      return;
+      return true;
     state.messages.push({
       id: message.messageId,
       sender: message.senderId,
+      nickname: message.nickname,
       text: text.slice(0, 500),
       time: this.now(),
     });
@@ -99,6 +100,37 @@ export class SocialMemory {
           this.learning = null;
         });
     }
+    return true;
+  }
+  chatContext(room) {
+    return (this.rooms.get(room)?.messages ?? [])
+      .filter(
+        (m) =>
+          m.time > this.now() - this.config.features.social.maxContextAgeMs,
+      )
+      .slice(-20)
+      .map(({ sender, nickname, text }) => ({ sender, nickname, text }));
+  }
+  recordReply(room, text) {
+    const state = this.rooms.get(room);
+    if (!state) return;
+    state.messages.push({
+      id: `reply-${randomUUID()}`,
+      sender: 'AI',
+      nickname: '小木',
+      text: text.slice(0, 500),
+      time: this.now(),
+    });
+    state.messages = state.messages.slice(-50);
+    state.lastBotAt = this.now();
+  }
+  resetRoom(room) {
+    const s = this.rooms.get(room);
+    if (!s) return;
+    s.messages = [];
+    s.attachments.clear();
+    s.sinceSocial = 0;
+    s.version++;
   }
   attachment(message) {
     if (message.attachment) return message.attachment;
@@ -112,7 +144,7 @@ export class SocialMemory {
   }
   async learn(room, state) {
     const sample = state.messages
-      .filter((m) => m.time > this.now() - 7200000)
+      .filter((m) => m.sender !== 'AI' && m.time > this.now() - 7200000)
       .slice(-this.config.features.slang.minMessages);
     if (sample.length < this.config.features.slang.minMessages) return;
     const generation = this.store.room(room).slangRevision ?? 0;
@@ -250,7 +282,7 @@ export class SocialMemory {
     const enabled =
       this.store.room(room).socialEnabled ??
       this.config.features.social.enabled;
-    return `本群主动聊天${enabled ? '已开启' : '已关闭'}；每日最多 ${this.config.features.social.maxPerDay} 次，夜间静默。AI 不会冒充真人。`;
+    return `本群主动聊天${enabled ? '已开启' : '已关闭'}；空闲约 ${Math.ceil(this.config.features.social.idleMs / 60000)} 分钟后考虑开口，每日最多 ${this.config.features.social.maxPerDay} 次。${this.config.douyin.trigger === 'social' ? '群友接话模式已配置。' : ''}`;
   }
   async tick(deliver, isBusy = () => false) {
     if (this.closed) return;
@@ -265,12 +297,18 @@ export class SocialMemory {
         saved.silent ||
         !(saved.socialEnabled ?? cfg.enabled) ||
         isBusy(room) ||
-        this.now() - last.timestamp < cfg.idleMs ||
+        this.now() - Math.max(last.timestamp, state.lastBotAt ?? 0) <
+          cfg.idleMs ||
         this.now() - last.timestamp > cfg.maxContextAgeMs ||
         state.sinceSocial < cfg.minMessages ||
         this.now() - (saved.socialAttemptAt ?? 0) < cfg.cooldownMs ||
         (saved.socialDay === clock.day && saved.socialAttempts >= cfg.maxPerDay)
       )
+        continue;
+      const recent = state.messages
+        .filter((m) => m.time > this.now() - cfg.maxContextAgeMs)
+        .slice(-Math.max(12, cfg.minMessages));
+      if (recent.filter((m) => m.sender !== 'AI').length < cfg.minMessages)
         continue;
       const version = state.version;
       this.store.updateRoom(room, {
@@ -280,10 +318,6 @@ export class SocialMemory {
           saved.socialDay === clock.day ? (saved.socialAttempts ?? 0) + 1 : 1,
       });
       state.sinceSocial = 0;
-      const recent = state.messages
-        .filter((m) => m.time > this.now() - cfg.maxContextAgeMs)
-        .slice(-12);
-      if (recent.length < cfg.minMessages) continue;
       await deliver({
         ...last,
         messageId: `social-${randomUUID()}`,
@@ -292,7 +326,7 @@ export class SocialMemory {
         proactive: true,
         attachment: null,
         text:
-          '【主动聊天】根据以下群聊语料，自然接一句或提出相关话题。不要伪装真人；没有合适内容时只输出 [SILENT]。\n' +
+          '【主动聊天】按当前人设，从下面刚聊过的话题里挑一个具体细节接一句或自然开话题，不重新自我介绍，不例行问“大家在干嘛”。没有适合内容时只输出 [SILENT]。\n' +
           JSON.stringify(recent),
         isCurrent: () => !this.closed && state.version === version,
       });

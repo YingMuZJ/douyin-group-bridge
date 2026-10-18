@@ -85,6 +85,20 @@ export function normalizeGroupMessage(event, now = Date.now()) {
   } else if (kind === 'audio') attachment = { kind };
   const accountId = identifier(event.account.uid, '账号 ID');
   const ownIds = new Set([accountId, event.account.imUid].filter(Boolean));
+  let referencedUid = event.referenceInfo?.refMessageId
+    ? event.group.getCachedMessage?.(event.referenceInfo.refMessageId)
+        ?.senderUid
+    : undefined;
+  if (
+    !referencedUid &&
+    typeof event.referenceInfo?.hint === 'string' &&
+    event.referenceInfo.hint.length < 8192
+  ) {
+    try {
+      const hint = JSON.parse(event.referenceInfo.hint);
+      if (typeof hint?.refmsg_uid === 'string') referencedUid = hint.refmsg_uid;
+    } catch {}
+  }
   if (ownIds.has(event.senderUid)) return null;
   const senderId = identifier(event.senderUid, '发送者 ID');
   const groupId = identifier(event.group.groupId, '群 ID');
@@ -123,6 +137,8 @@ export function normalizeGroupMessage(event, now = Date.now()) {
       event.member?.alias || event.member?.nickname || senderId,
     ).slice(0, 80),
     mentioned: event.isMentionMe === true,
+    repliedToBot: !!referencedUid && ownIds.has(referencedUid),
+    repliedToOther: !!referencedUid && !ownIds.has(referencedUid),
     groupName: String(event.group.name || groupId).slice(0, 80),
     kind,
     attachment,

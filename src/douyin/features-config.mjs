@@ -12,6 +12,12 @@ function count(value, fallback, min, max, label) {
     throw new TypeError(`${label} 范围为 ${min}~${max}`);
   return n;
 }
+function probability(value, fallback, label) {
+  const n = value ?? fallback;
+  if (typeof n !== 'number' || !Number.isFinite(n) || n < 0 || n > 1)
+    throw new TypeError(`${label} 范围为 0~1`);
+  return n;
+}
 
 export function featureConfig(raw = {}, root) {
   const v = raw.vision ?? {},
@@ -62,6 +68,15 @@ export function featureConfig(raw = {}, root) {
   const engine = a.tts ?? (process.platform === 'win32' ? 'windows' : 'none');
   if (!['windows', 'none'].includes(engine))
     throw new TypeError('voice.tts 只能是 windows / none');
+  const aliases = s.aliases ?? ['小木'];
+  if (
+    !Array.isArray(aliases) ||
+    aliases.length > 12 ||
+    aliases.some(
+      (v) => typeof v !== 'string' || v.trim().length < 2 || v.length > 30,
+    )
+  )
+    throw new TypeError('social.aliases 需要至多12个、每个2~30字符的名字');
   return {
     poke: {
       enabled: flag(raw.poke?.enabled, true, 'poke.enabled'),
@@ -99,6 +114,56 @@ export function featureConfig(raw = {}, root) {
       confirmations: count(l.confirmations, 2, 2, 20, 'slang.confirmations'),
     },
     social: {
+      aliases: [...new Set(aliases.map((s) => s.trim()))],
+      replyProbability: probability(
+        s.replyProbability,
+        0.4,
+        'social.replyProbability',
+      ),
+      batchWindowMs: count(
+        s.batchWindowMs,
+        2500,
+        100,
+        15000,
+        'social.batchWindowMs',
+      ),
+      replyCooldownMs: count(
+        s.replyCooldownMs,
+        20000,
+        1000,
+        600000,
+        'social.replyCooldownMs',
+      ),
+      maxChecksPerHour: count(
+        s.maxChecksPerHour,
+        12,
+        1,
+        120,
+        'social.maxChecksPerHour',
+      ),
+      followupWindowMs: count(
+        s.followupWindowMs,
+        180000,
+        1000,
+        600000,
+        'social.followupWindowMs',
+      ),
+      followupMaxTurns: count(
+        s.followupMaxTurns,
+        6,
+        1,
+        20,
+        'social.followupMaxTurns',
+      ),
+      activeDurationMs: count(
+        s.activeDurationMs,
+        900000,
+        10000,
+        3600000,
+        'social.activeDurationMs',
+      ),
+      replyMaxChars: count(s.replyMaxChars, 80, 5, 500, 'social.replyMaxChars'),
+      allowEmoji: flag(s.allowEmoji, false, 'social.allowEmoji'),
       enabled: flag(s.enabled, false, 'social.enabled'),
       idleMs: count(s.idleMs, 900000, 1000, 86400000, 'social.idleMs'),
       cooldownMs: count(
