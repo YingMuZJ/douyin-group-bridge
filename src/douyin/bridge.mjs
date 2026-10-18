@@ -150,7 +150,10 @@ export class GroupBridge {
       return false;
     }
     if (send && this.canSend(message) && valid() && this.takeSlot(message)) {
-      await send();
+      const receipt = await send();
+      this.log(
+        `平台已受理群互动 ${action.type}，群 ${message.groupId}${Number.isInteger(receipt?.statusCode) ? `，status=${receipt.statusCode}` : ''}`,
+      );
       return true;
     }
     return false;

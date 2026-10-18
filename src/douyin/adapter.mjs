@@ -4,8 +4,20 @@ import { mediaUrl } from './media.mjs';
 
 const stickerCaches = new WeakMap();
 function confirmed(response) {
-  if (!response || response.statusCode !== 0)
-    throw new Error('抖音未确认发送成功');
+  if (
+    !response ||
+    response.statusCode !== 0 ||
+    (Number.isFinite(response.checkCode) && response.checkCode !== 0)
+  )
+    throw Object.assign(new Error('抖音未确认发送成功'), {
+      code: response?.checkCode === 10502 ? 'DOUYIN_REVIEW' : undefined,
+      statusCode: Number.isInteger(response?.statusCode)
+        ? response.statusCode
+        : undefined,
+      checkCode: Number.isInteger(response?.checkCode)
+        ? response.checkCode
+        : undefined,
+    });
   return response;
 }
 async function stickers(account) {
@@ -40,14 +52,18 @@ export function normalizeGroupMessage(event, now = Date.now()) {
   let attachment;
   if (kind === 'image') {
     const image = event.content.image;
-    const url = [
-      ...(image?.originUrls ?? []),
-      ...(image?.largeUrls ?? []),
-      ...(image?.mediumUrls ?? []),
-      ...(image?.thumbUrls ?? []),
-    ].find(Boolean);
-    if (!url) return null;
-    attachment = { kind, url, skey: image.skey };
+    const urls = [
+      ...new Set(
+        [
+          ...(image?.originUrls ?? []),
+          ...(image?.largeUrls ?? []),
+          ...(image?.mediumUrls ?? []),
+          ...(image?.thumbUrls ?? []),
+        ].filter((u) => typeof u === 'string' && u),
+      ),
+    ].slice(0, 6);
+    if (!urls.length) return null;
+    attachment = { kind, url: urls[0], urls, skey: image.skey };
   } else if (kind === 'emoji') {
     if (!event.content.url) return null;
     let payload;
@@ -155,6 +171,11 @@ export function normalizeGroupMessage(event, now = Date.now()) {
 export function stripPrefix(text, prefix) {
   if (text === prefix) return '';
   if (text.startsWith(prefix) && /\s/.test(text.charAt(prefix.length)))
+    return text.slice(prefix.length).trim();
+  if (
+    text.startsWith(prefix + '/') &&
+    /^\/[a-z]+(?:\s|$)/i.test(text.slice(prefix.length))
+  )
     return text.slice(prefix.length).trim();
   return null;
 }

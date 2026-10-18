@@ -129,6 +129,40 @@ export class Vision {
   constructor(config, { download = downloadMedia, fetcher = fetch } = {}) {
     Object.assign(this, { config, download, fetcher });
   }
+  async readImage(attachment, signal) {
+    const urls = [
+      ...new Set(
+        [attachment.url, ...(attachment.urls ?? [])].filter(
+          (u) => typeof u === 'string' && u,
+        ),
+      ),
+    ].slice(0, 6);
+    let lastCode = 'IMAGE_URL';
+    for (const url of urls) {
+      signal.throwIfAborted();
+      try {
+        let bytes = await this.download(url, this.config.maxBytes, signal);
+        if (!imageMime(bytes) && attachment.skey)
+          bytes = decryptImage(bytes, attachment.skey);
+        const mime = imageMime(bytes);
+        if (!mime) {
+          lastCode = 'IMAGE_FORMAT';
+          continue;
+        }
+        if (bytes.length > this.config.maxBytes) {
+          lastCode = 'IMAGE_SIZE';
+          continue;
+        }
+        return { bytes, mime };
+      } catch (e) {
+        signal.throwIfAborted();
+        lastCode = 'IMAGE_DOWNLOAD_OR_DECRYPT';
+      }
+    }
+    throw Object.assign(new Error('没有可用的图片原图或预览图'), {
+      code: lastCode,
+    });
+  }
   async describe(attachment, question, signal) {
     if (!this.config.enabled) return '图片理解未启用：请管理员先配置视觉模型。';
     const apiKey = visionKey(this.config);
@@ -137,16 +171,9 @@ export class Vision {
       AbortSignal.timeout(this.config.timeoutMs),
       ...(signal ? [signal] : []),
     ]);
-    let bytes = await this.download(
-      attachment.url,
-      this.config.maxBytes,
-      controller,
-    );
-    if (!imageMime(bytes) && attachment.skey)
-      bytes = decryptImage(bytes, attachment.skey);
-    const mime = imageMime(bytes);
-    if (!mime || bytes.length > this.config.maxBytes)
-      throw new Error('图片格式不支持或大小超限');
+    // HEIC originals are common on phones. Try supplied previews before making
+    // the single billable API call; never retry a model request automatically.
+    const { bytes, mime } = await this.readImage(attachment, controller);
     const response = await this.fetcher(
       this.config.baseUrl + '/chat/completions',
       {
@@ -185,7 +212,11 @@ export class Vision {
         }),
       },
     );
-    if (!response.ok) throw new Error('视觉模型调用失败');
+    if (!response.ok)
+      throw Object.assign(new Error('视觉模型调用失败'), {
+        code: 'VISION_HTTP',
+        statusCode: response.status,
+      });
     const chunks = [];
     let size = 0;
     for await (const chunk of response.body) {

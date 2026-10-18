@@ -3,7 +3,7 @@
 Adapted from [Derpyu520/qq-bridge](https://github.com/Derpyu520/qq-bridge).
 The default entrypoint uses `douyin-im@1.1.0` for group text, images, collected stickers, message reactions and audio file attachments, with the upstream DSH client for persistent conversations.
 
-46 local tests pass. Real Douyin login, group/member listing, DSH session lifecycle and group text delivery were verified on the installation machine. Windows TTS produced a valid WAV, the real `deepseek-flash` API identified a red test image, and real DSH returned the action JSON format. Newly added media rendering/playback and autonomous conversation still need separate live acceptance. This is a community SDK integration, not an official Douyin bot API.
+50 local tests pass. Real login and group text delivery were verified on the installation machine. Windows TTS, real Flash vision and DSH action JSON were tested. A real encrypted HEIC photo was recognized using its supported preview; the group description received a successful send receipt. Audio-file delivery returned platform review code `10502`, so delivery/playback are unconfirmed. Reaction rendering and autonomous conversation still need receiving-client acceptance. This is a community SDK integration, not an official Douyin bot API.
 
 See [README.md](README.md) for setup, configuration, limitations and acceptance steps.
 

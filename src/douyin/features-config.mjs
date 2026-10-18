@@ -65,7 +65,7 @@ export function featureConfig(raw = {}, root) {
   return {
     poke: {
       enabled: flag(raw.poke?.enabled, true, 'poke.enabled'),
-      emoji: '👋',
+      emoji: '[爱心]',
     },
     stickers: {
       enabled: flag(raw.stickers?.enabled, true, 'stickers.enabled'),

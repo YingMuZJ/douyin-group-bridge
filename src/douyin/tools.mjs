@@ -75,7 +75,7 @@ export class FeatureTools {
     return [
       '【互动输出格式】只返回 JSON {"text":"回复正文","action":null}。必要时只选一个当前群动作；不填群ID或用户ID。不要声称已经发送，动作由桥接执行。',
       f.poke.enabled && message.react
-        ? 'poke：{"type":"poke"}，对当前消息添加 👋 表态，属于戳一戳的替代交互。'
+        ? 'poke：{"type":"poke"}，对当前消息添加爱心表态，属于戳一戳的替代交互。'
         : '',
       stickers.length
         ? 'sticker：{"type":"sticker","id":"收藏ID"}；只能选此列表：' +

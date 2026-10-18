@@ -20,6 +20,7 @@ import {
 } from '../../src/douyin/media.mjs';
 import { normalizeGroupMessage } from '../../src/douyin/adapter.mjs';
 import { visionKey } from '../../src/douyin/credentials.mjs';
+import { ImService } from 'douyin-im/protocol';
 
 const bot = '10001',
   group = '20001',
@@ -253,6 +254,162 @@ test('互动命令和模型动作共用来源群限制、去重和每分钟限�
   assert.equal(f.sends.length, 0);
 });
 
+test('抖音真实SDK发出的表态属性使用平台键，紧凑前缀仍可识别', async (t) => {
+  const f = fixture(t);
+  const service = new ImService(
+    {},
+    { deviceId: 'fixture-device', platformUid: bot },
+  );
+  let body;
+  service.transport.sendCookieProto = async (
+    _command,
+    _inbox,
+    _route,
+    payload,
+  ) => {
+    body = payload;
+    return {
+      statusCode: 0,
+      body: { modifyMessagePropertyBody: { status: 0 } },
+    };
+  };
+  await f.bridge.handle(
+    f.msg({
+      text: '/ai/poke',
+      mentioned: false,
+      react: (emoji) =>
+        service.modifyMessageReaction({
+          threadId: group,
+          conversationShortId: group,
+          conversationType: 2,
+          serverMessageId: '90001',
+          operatorUid: bot,
+          emoji,
+          enabled: true,
+        }),
+    }),
+  );
+  assert.equal(
+    body.modifyMessagePropertyBody.propertyList.modifyPropertyContent[0].key,
+    'se:[爱心]',
+  );
+  assert.equal(
+    await f.bridge.handle(
+      f.msg({ text: '/aim 不应触发', mentioned: false, senderId: other }),
+    ),
+    false,
+  );
+});
+
+test('加密HEIC原图自动退到加密PNG预览，视觉API只调用一次', async (t) => {
+  const key = randomBytes(32),
+    iv = randomBytes(12);
+  const encrypt = (data) => {
+    const c = createCipheriv('aes-256-gcm', key, iv);
+    return Buffer.concat([iv, c.update(data), c.final(), c.getAuthTag()]);
+  };
+  const heic = encrypt(Buffer.from('0000001c667479706865696300000000', 'hex'));
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aN5sAAAAASUVORK5CYII=',
+    'base64',
+  );
+  const preview = encrypt(png),
+    downloads = [];
+  let calls = 0,
+    payload;
+  const env = 'DOUYIN_TEST_PREVIEW_KEY',
+    prior = process.env[env];
+  process.env[env] = 'fixture-preview-key';
+  t.after(() => {
+    if (prior === undefined) delete process.env[env];
+    else process.env[env] = prior;
+  });
+  const config = {
+    enabled: true,
+    baseUrl: 'https://vision.example/v1',
+    model: 'fixture',
+    apiKeyEnv: env,
+    maxBytes: 10000,
+    timeoutMs: 1000,
+  };
+  const vision = new Vision(config, {
+    download: async (url) => {
+      downloads.push(url);
+      return url.endsWith('original') ? heic : preview;
+    },
+    fetcher: async (_url, init) => {
+      calls++;
+      payload = JSON.parse(init.body);
+      return new Response(
+        JSON.stringify({ choices: [{ message: { content: '预览图内容' } }] }),
+      );
+    },
+  });
+  const answer = await vision.describe(
+    {
+      url: 'https://p.douyinpic.com/original',
+      urls: [
+        'https://p.douyinpic.com/original',
+        'https://p.douyinpic.com/preview',
+      ],
+      skey: key.toString('hex'),
+    },
+    '看图',
+  );
+  assert.equal(answer, '预览图内容');
+  assert.equal(downloads.length, 2);
+  assert.equal(calls, 1);
+  assert.equal(
+    payload.messages[1].content[1].image_url.url,
+    'data:image/png;base64,' + png.toString('base64'),
+  );
+});
+
+test('视觉服务报错后不重新调用模型，也不继续换图重复计费', async (t) => {
+  const env = 'DOUYIN_TEST_API_FAILURE_KEY',
+    prior = process.env[env];
+  process.env[env] = 'fixture-only';
+  t.after(() => {
+    if (prior === undefined) delete process.env[env];
+    else process.env[env] = prior;
+  });
+  let downloads = 0,
+    calls = 0;
+  const vision = new Vision(
+    {
+      enabled: true,
+      baseUrl: 'https://vision.example/v1',
+      model: 'fixture',
+      apiKeyEnv: env,
+      maxBytes: 10000,
+      timeoutMs: 1000,
+    },
+    {
+      download: async () => {
+        downloads++;
+        return Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+      },
+      fetcher: async () => {
+        calls++;
+        return new Response('', { status: 503 });
+      },
+    },
+  );
+  await assert.rejects(
+    () =>
+      vision.describe(
+        {
+          url: 'https://p.douyinpic.com/a',
+          urls: ['https://p.douyinpic.com/b'],
+        },
+        '看图',
+      ),
+    (e) => e.code === 'VISION_HTTP' && e.statusCode === 503,
+  );
+  assert.equal(downloads, 1);
+  assert.equal(calls, 1);
+});
+
 test('模型不能指定任意目标、文件路径或未知动作，语音精确密钥不外发', async (t) => {
   assert.throws(() =>
     parseReply('{"text":"x","action":{"type":"poke","groupId":"999"}}'),
@@ -292,6 +449,48 @@ test('媒体发送超时不会重试，也不会接着发送正文或错误消�
   await f.bridge.handle(m);
   assert.equal(count, 1);
   assert.equal(f.sends.length, 0);
+});
+
+test('平台返回审核码10502时不当作送达，也不自动重发音频', async (t) => {
+  const f = fixture(t);
+  let sends = 0;
+  const groupContact = {
+    groupId: group,
+    name: '测试群',
+    pickMember: () => undefined,
+    ensureMember: () => ({ nickname: '用户' }),
+    sendMsg: async () => {
+      sends++;
+      return { statusCode: 0, checkCode: 10502 };
+    },
+  };
+  const account = { uid: bot, imUid: '999', bindGroup: () => groupContact };
+  const event = GroupMessageEvent.fromInbound(
+    {
+      raw: {},
+      threadId: group,
+      conversationShortId: group,
+      conversationType: 2,
+      senderUid: user,
+      serverMessageId: '90002',
+      createTime: String(f.now() / 1000),
+      messageType: 7,
+      rawContent: JSON.stringify({
+        aweType: 700,
+        type: 0,
+        text: '/ai /voice 测试',
+      }),
+      text: '/ai /voice 测试',
+    },
+    account,
+  );
+  const m = normalizeGroupMessage(event, f.now());
+  await assert.rejects(
+    () => f.bridge.handle(m),
+    (e) => e.code === 'DOUYIN_REVIEW' && e.checkCode === 10502,
+  );
+  await f.bridge.handle(m);
+  assert.equal(sends, 1);
 });
 
 test('模型选择沉默时不执行附带的表情动作', async (t) => {
