@@ -50,7 +50,7 @@ export class DshAgent {
           provider: config.dsh.provider,
           model: config.dsh.model,
           reasoningEffort: config.dsh.reasoningEffort,
-          guardVersion: 3,
+          guardVersion: 4,
           conversationPolicy:
             config.douyin.trigger === 'social'
               ? {

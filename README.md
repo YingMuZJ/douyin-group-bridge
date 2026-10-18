@@ -126,6 +126,8 @@ npm start
 
 想使用原项目“二代仿真模式／小鲸鱼”时，新安装改用 [config.whale.example.json](config.whale.example.json)；已有安装把 `roleFile` 设为 `小鲸鱼-抖音.md`，并将 `features.social.aliases` 加入“小鲸鱼”“鲸鱼娘”“D指导”“DeepSeek”。若本群曾用 `/role` 覆盖人设，先用 `/ai /role off` 恢复配置人设，再重启桥接。适配卡 [roles/小鲸鱼-抖音.md](roles/小鲸鱼-抖音.md) 取自上游 [roles/小鲸鱼.md](roles/小鲸鱼.md) 与 `qq-chat-v2`：通常 1–10 字，最多 20 字、不用 emoji；性格傲娇、会接梗，认真话题收起调侃。沿用抖音的合并、续聊与冷场调度，不加载 QQ MCP，不声称拥有未移植的联网、记忆编辑或自拍工具。
 
+0.3.2 恢复了原角色卡的主体与正反例，并调整底层语气定位，避免把小鲸鱼压回客服式助手。升级此版本需同时重启 DSH 和桥接以加载预设，新策略会重建旧会话；详细调整与验证边界见 [扩展说明](docs/DOUYIN_FEATURES.md)。
+
 ## 管理与配置
 
 管理员在群内 @ 机器人后输入以下命令，或用 `/ai /命令`：
